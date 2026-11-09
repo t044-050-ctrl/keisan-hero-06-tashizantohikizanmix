@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>計算ヒーロー06</title>
-  <meta property="og:title" content="計算ヒーロー06">
-    <meta property="og:description" content="【１年算数たし算ひき算】たし算とひき算をミックスした練習アプリです。">
-    <meta property="og:type" content="website">
+  <title>計算ヒーロー - たしざんとひきざんミックス</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -128,6 +125,8 @@
       -webkit-touch-callout: none !important;
       -webkit-user-select: none !important;
       user-select: none !important;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
   </style>
 </head>
@@ -721,7 +720,7 @@
     let totalScore = 0;
     let stage = 1;
     let connectedDotCount = 0;
-    let lastBonusTriggeredScore = 0;
+    let bonusProgressPoints = 0;
     let pendingDotPoints = 0;
 
     // タイプごとの問題プール & 均等出題キュー
@@ -1301,6 +1300,7 @@
 
         const pts = isHintUsedCurrentProblem ? 2 : 4;
         totalScore += pts;
+        bonusProgressPoints += pts;
         stagePointsGained += pts;
 
         document.getElementById('pts-gained-popup').innerText = `+${pts} pt !`;
@@ -1560,10 +1560,10 @@
         }
       }
 
-      const bonusProg = totalScore % 50;
-      const pct = (bonusProg / 50) * 100;
+      const displayProg = Math.min(50, Math.max(0, bonusProgressPoints));
+      const pct = (displayProg / 50) * 100;
       document.getElementById('bonus-meter-bar').style.width = `${pct}%`;
-      document.getElementById('bonus-meter-text').innerText = `${bonusProg}/50`;
+      document.getElementById('bonus-meter-text').innerText = `${displayProg}/50`;
     }
 
     function renderHeroDock() {
@@ -1583,9 +1583,9 @@
 
     // ステージクリア時判定（50ptごとのボーナス判定 ＆ てんつなぎ遷移）
     function handleStageCompletion() {
-      if (totalScore >= lastBonusTriggeredScore + 50) {
+      if (bonusProgressPoints >= 50) {
+        bonusProgressPoints = Math.max(0, bonusProgressPoints - 50);
         pendingDotPoints = stagePointsGained;
-        lastBonusTriggeredScore = Math.floor(totalScore / 50) * 50;
         saveGameProgress();
         startBonusStage();
       } else {
@@ -1629,11 +1629,6 @@
               setTimeout(() => {
                 unlockNextHero();
               }, 400);
-            } else {
-              // ポイント分進めたら自動的にてんつなぎを閉じてステージ問題に進む
-              setTimeout(() => {
-                closeDotModal();
-              }, 700);
             }
           }
         }, 130);
@@ -1641,11 +1636,6 @@
         setTimeout(() => {
           unlockNextHero();
         }, 600);
-      } else {
-        // 進めるポイントが0の場合も少し表示した後にステージへ進む
-        setTimeout(() => {
-          closeDotModal();
-        }, 800);
       }
     }
 
@@ -1679,6 +1669,7 @@
     }
 
     function closeDotModal() {
+      playSound('tap');
       const modal = document.getElementById('dot-modal');
       modal.classList.add('opacity-0', 'pointer-events-none');
       stage++;
@@ -1954,6 +1945,8 @@
         overlay.classList.add('opacity-0', 'pointer-events-none');
       }
 
+      saveGameProgress();
+
       // ボーナスステージ終了後、ステージ問題ポイント ＋ ボーナス獲得ポイントを合算しててんつなぎへ加算
       const ptsToPass = (pendingDotPoints > 0 ? pendingDotPoints : 0) + bonusEarnedPts;
       pendingDotPoints = 0;
@@ -2048,7 +2041,8 @@
           totalScore,
           stage,
           connectedDotCount,
-          currentMotifIndex
+          currentMotifIndex,
+          bonusProgressPoints
         };
         localStorage.setItem('calc_hero_save_v3', JSON.stringify(data));
       } catch (e) {}
@@ -2064,6 +2058,11 @@
           if (typeof data.stage === 'number') stage = data.stage;
           if (typeof data.connectedDotCount === 'number') connectedDotCount = data.connectedDotCount;
           if (typeof data.currentMotifIndex === 'number') setMotifByIndex(data.currentMotifIndex);
+          if (typeof data.bonusProgressPoints === 'number') {
+            bonusProgressPoints = Math.min(50, Math.max(0, data.bonusProgressPoints));
+          } else {
+            bonusProgressPoints = 0;
+          }
         }
       } catch (e) {}
     }
@@ -2074,6 +2073,26 @@
         selectRandomMotif();
       }
       renderHeroDock();
+
+      // 長押しコンテキストメニュー・右クリックの無効化
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+      }, { passive: false });
+
+      // ダブルタップによる拡大・操作の無効化
+      document.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+      }, { passive: false });
+
+      // モバイルブラウザでの連続タップ（ダブルタップ）拡大防止
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', function(e) {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          e.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, { passive: false });
     };
   </script>
 </body>
